@@ -1,0 +1,114 @@
+#
+#
+# Copyright (C) SlashNext, Inc. (www.slashnext.com)
+#
+# License:     Subject to the terms and conditions of SlashNext EULA, SlashNext grants to Customer a non-transferable, non-sublicensable, 
+#              non-exclusive license to use the Software as expressly permitted in accordance with Documentation or other specifications published by SlashNext.  
+#              The Software is solely for Customer's internal business purposes.   All other rights in the Software are expressly reserved by SlashNext.
+#
+version: "1.0.1"
+required_threatq_version: ">=4.17.1"
+
+_sn_user_fields: &slashnext-userfields
+  user_fields:
+    - name: authkey
+      label: SlashNext Threat Intel API Key
+      mask: True
+      description: The system uses this API key to authenticate with SlashNext Cloud. If you don’t have a valid API key, please reach us at support@slashnext.com
+      
+_: &slashnext-common
+  category: Commercial
+  default_indicator_status: Active
+  default_signature_status: Active
+  filters:
+    - str
+    - json
+    - iterate
+      
+_: &slashnext-attributes
+  attribute-sets:
+    default:
+      - name: Threat Name
+        value: !expr data.threat_name
+      - name: Threat Type
+        value: !expr data.threat_type
+      - name: First Seen
+        value: !expr data.first_seen
+      - name: Last Seen
+        value: !expr data.last_seen
+
+_: &slashnext-query
+  base_url: https://intel.slashnext.cloud/api/feed/
+  method: GET
+  response_content_type: application/json
+  params:
+    format: 'json'
+    authkey: !expr user_fields.authkey
+            
+_: &slashnext-ip
+  source:
+    http:
+      <<: *slashnext-query
+      url: ips
+  report:
+    <<: *slashnext-attributes
+    indicator-sets:
+      default:
+        inter-related: false
+        attribute-sets:
+          - default
+        indicators:
+          - type: IP Address
+            value: !expr data.hostip[:-3]
+            published_at: !expr data.timestamp
+
+_: &slashnext-domain
+  source:
+    http:
+      <<: *slashnext-query
+      url: domains
+  report:
+    <<: *slashnext-attributes
+    indicator-sets:
+      default:
+        inter-related: false
+        attribute-sets:
+          - default
+        indicators:
+          - type: FQDN
+            value: !expr data.domain
+            published_at: !expr data.timestamp
+            
+_: &slashnext-wcurl
+  source:
+    http:
+      <<: *slashnext-query
+      url: wildcardurls
+  report:
+    <<: *slashnext-attributes
+    indicator-sets:
+      default:
+        inter-related: false
+        attribute-sets:
+          - default
+        indicators:
+          - type: URL
+            value: !expr data.wildcardurl
+            published_at: !expr data.timestamp
+            
+feeds:
+  SlashNext Intel - Phishing IPs:
+    <<: *slashnext-userfields
+    <<: *slashnext-common
+    <<: *slashnext-ip
+
+  SlashNext Intel - Phishing FQDNs:
+    <<: *slashnext-userfields
+    <<: *slashnext-common
+    <<: *slashnext-domain
+    
+  SlashNext Intel - Phishing Wildcard URLs:
+    <<: *slashnext-userfields
+    <<: *slashnext-common
+    <<: *slashnext-wcurl
+
